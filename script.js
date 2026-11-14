@@ -1,6 +1,7 @@
 
-const JAMENDO_CLIENT_ID = "709fa152"; // ID testing saja
+const JAMENDO_CLIENT_ID = "709fa152"; // ID testing Jamendo
 
+// ELEMENT HTML
 const audio = document.getElementById("audio");
 const upload = document.getElementById("musicUpload");
 const uploadBtn = document.getElementById("uploadBtn");
@@ -28,10 +29,12 @@ const searchBtn = document.getElementById("searchBtn");
 const searchStatus = document.getElementById("searchStatus");
 const onlineResults = document.getElementById("onlineResults");
 
+// DATA
 let playlist = [];
 let currentSong = 0;
 let lyrics = [];
 let activeLyric = -1;
+let activeSearchCleanup = null;
 
 // FORMAT WAKTU
 function formatTime(seconds) {
@@ -53,7 +56,7 @@ upload.addEventListener("change", () => {
     if (!file.type.startsWith("audio/")) return;
 
     playlist.push({
-      id: "local-" + crypto.randomUUID(),
+      id: "local-" + Date.now() + "-" + Math.random(),
       name: file.name.replace(/\.[^/.]+$/, ""),
       artist: "Local Music",
       url: URL.createObjectURL(file),
@@ -66,27 +69,49 @@ upload.addEventListener("change", () => {
   renderPlaylist();
 
   if (playlist.length && !audio.src) {
-    loadSong(0);
+    currentSong = 0;
+    loadSong(currentSong);
   }
 
   upload.value = "";
 });
 
-// PENCARIAN MUSIK ONLINE
-async function searchOnline() {
+// ==================================================
+// PENCARIAN JAMENDO - JSONP
+// ==================================================
+
+function searchOnline() {
   const query = searchInput.value.trim();
 
   if (!query) {
-    searchStatus.textContent = "Masukkan nama lagu atau artis.";
+    searchStatus.textContent =
+      "Masukkan nama lagu atau artis.";
+
     return;
   }
 
-  searchStatus.textContent = "Sedang mencari musik...";
-  onlineResults.innerHTML = "";
+  // Batalkan pencarian sebelumnya
+  if (activeSearchCleanup) {
+    activeSearchCleanup();
+    activeSearchCleanup = null;
+  }
+
+  searchStatus.textContent = "Menghubungi Jamendo...";
+  onlineResults.replaceChildren();
+
+  searchBtn.disabled = true;
+  searchBtn.textContent = "SEARCHING...";
+
+  const callbackName =
+    "jamendoCallback_" +
+    Date.now() +
+    "_" +
+    Math.floor(Math.random() * 100000);
 
   const params = new URLSearchParams({
     client_id: JAMENDO_CLIENT_ID,
     format: "json",
+    callback: callbackName,
     limit: "15",
     search: query,
     type: "single albumtrack",
@@ -94,27 +119,65 @@ async function searchOnline() {
     include: "licenses"
   });
 
-  try {
-    const response = await fetch(
-      "https://api.jamendo.com/v3.0/tracks/?" + params
-    );
+  const script = document.createElement("script");
 
-    if (!response.ok) {
-      throw new Error("HTTP " + response.status);
+  script.src =
+    "https://api.jamendo.com/v3.0/tracks/?" +
+    params.toString();
+
+  script.async = true;
+
+  let finished = false;
+  let timeoutId;
+
+  function cleanup() {
+    clearTimeout(timeoutId);
+
+    delete window[callbackName];
+
+    script.remove();
+
+    if (activeSearchCleanup === cleanup) {
+      activeSearchCleanup = null;
     }
 
-    const data = await response.json();
+    searchBtn.disabled = false;
+    searchBtn.textContent = "SEARCH";
+  }
+
+  function finish() {
+    if (finished) return false;
+
+    finished = true;
+    cleanup();
+
+    return true;
+  }
+
+  activeSearchCleanup = cleanup;
+
+  // Callback dari Jamendo
+  window[callbackName] = function(data) {
+    if (!finish()) return;
 
     if (data.headers?.status !== "success") {
-      throw new Error(
-        data.headers?.error_message || "API error"
-      );
+      searchStatus.textContent =
+        "Jamendo API Error: " +
+        (
+          data.headers?.error_message ||
+          data.headers?.status ||
+          "Respons API tidak valid."
+        );
+
+      return;
     }
 
     const tracks = data.results || [];
 
     if (!tracks.length) {
-      searchStatus.textContent = "Musik tidak ditemukan.";
+      searchStatus.textContent =
+        "Musik tidak ditemukan. Coba kata kunci lain.";
+
       return;
     }
 
@@ -124,29 +187,48 @@ async function searchOnline() {
     tracks.forEach(track => {
       renderOnlineTrack(track);
     });
+  };
 
-  } catch (error) {
-    console.error(error);
+  // Jika server gagal dihubungi
+  script.onerror = function() {
+    if (!finish()) return;
 
     searchStatus.textContent =
-      "Pencarian gagal. Periksa internet, Client ID, atau coba jalankan melalui localhost/HTTPS.";
-  }
+      "Gagal menghubungi Jamendo. Periksa internet atau Client ID.";
+  };
+
+  // Batas waktu 20 detik
+  timeoutId = setTimeout(() => {
+    if (!finish()) return;
+
+    searchStatus.textContent =
+      "Pencarian timeout. Coba lagi beberapa saat.";
+  }, 20000);
+
+  document.body.appendChild(script);
 }
 
 searchBtn.addEventListener("click", searchOnline);
 
 searchInput.addEventListener("keydown", event => {
-  if (event.key === "Enter") searchOnline();
+  if (event.key === "Enter") {
+    searchOnline();
+  }
 });
 
-// TAMPILKAN HASIL ONLINE
+// ==================================================
+// HASIL PENCARIAN ONLINE
+// ==================================================
+
 function renderOnlineTrack(track) {
   const card = document.createElement("div");
   card.className = "online-card";
 
   const image = document.createElement("img");
+
   image.src = track.image || "";
   image.alt = "Album cover";
+
   image.onerror = () => {
     image.style.visibility = "hidden";
   };
@@ -155,12 +237,14 @@ function renderOnlineTrack(track) {
   info.className = "online-info";
 
   const title = document.createElement("h3");
-  title.textContent = track.name;
+  title.textContent = track.name || "Unknown Song";
 
   const artistName = document.createElement("p");
-  artistName.textContent = track.artist_name || "Unknown Artist";
+  artistName.textContent =
+    track.artist_name || "Unknown Artist";
 
   const button = document.createElement("button");
+
   button.textContent = "▶";
   button.title = "Play music";
 
@@ -172,7 +256,7 @@ function renderOnlineTrack(track) {
 
     const song = {
       id: "jamendo-" + track.id,
-      name: track.name,
+      name: track.name || "Unknown Song",
       artist: track.artist_name || "Unknown Artist",
       url: track.audio,
       cover: track.image || null,
@@ -202,7 +286,10 @@ function renderOnlineTrack(track) {
   onlineResults.appendChild(card);
 }
 
+// ==================================================
 // MEMUAT LAGU
+// ==================================================
+
 function loadSong(index) {
   const song = playlist[index];
 
@@ -215,9 +302,10 @@ function loadSong(index) {
   artist.textContent = song.artist;
 
   if (song.cover) {
-    cover.innerHTML = "";
+    cover.replaceChildren();
 
     const image = document.createElement("img");
+
     image.src = song.cover;
     image.alt = "Album cover";
 
@@ -230,6 +318,7 @@ function loadSong(index) {
 
   if (song.license) {
     const link = document.createElement("a");
+
     link.href = song.license;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
@@ -249,13 +338,17 @@ function loadSong(index) {
 
   lyrics = [];
   activeLyric = -1;
+
   showLyrics();
 
   renderPlaylist();
   audio.load();
 }
 
-// PLAY
+// ==================================================
+// PLAY / PAUSE
+// ==================================================
+
 async function playSong() {
   if (!audio.src) {
     alert("Pilih musik terlebih dahulu.");
@@ -265,8 +358,9 @@ async function playSong() {
   try {
     await audio.play();
   } catch (error) {
-    console.error(error);
-    alert("Musik tidak dapat diputar.");
+    console.error("Playback error:", error);
+
+    alert("Musik tidak dapat diputar. Periksa koneksi atau sumber audio.");
   }
 }
 
@@ -291,16 +385,25 @@ audio.addEventListener("pause", () => {
   playBtn.textContent = "▶";
 });
 
-// NEXT
+audio.addEventListener("error", () => {
+  if (audio.src) {
+    console.error("Audio loading error:", audio.error);
+  }
+});
+
+// ==================================================
+// NEXT / PREVIOUS
+// ==================================================
+
 nextBtn.addEventListener("click", () => {
   if (!playlist.length) return;
 
   currentSong = (currentSong + 1) % playlist.length;
+
   loadSong(currentSong);
   playSong();
 });
 
-// PREVIOUS
 prevBtn.addEventListener("click", () => {
   if (!playlist.length) return;
 
@@ -311,7 +414,10 @@ prevBtn.addEventListener("click", () => {
   playSong();
 });
 
-// PROGRESS
+// ==================================================
+// PROGRESS BAR
+// ==================================================
+
 audio.addEventListener("timeupdate", () => {
   if (!audio.duration) return;
 
@@ -325,7 +431,8 @@ audio.addEventListener("timeupdate", () => {
 });
 
 audio.addEventListener("loadedmetadata", () => {
-  duration.textContent = formatTime(audio.duration);
+  duration.textContent =
+    formatTime(audio.duration);
 });
 
 progress.addEventListener("input", () => {
@@ -337,27 +444,36 @@ progress.addEventListener("input", () => {
   updateLyrics();
 });
 
+// ==================================================
 // AUTO NEXT
+// ==================================================
+
 audio.addEventListener("ended", () => {
   if (!playlist.length) return;
 
   currentSong = (currentSong + 1) % playlist.length;
+
   loadSong(currentSong);
   playSong();
 });
 
+// ==================================================
 // PLAYLIST
+// ==================================================
+
 function renderPlaylist() {
-  playlistElement.innerHTML = "";
+  playlistElement.replaceChildren();
 
   if (!playlist.length) {
     playlistElement.innerHTML =
       '<p class="empty">Your songs will appear here.</p>';
+
     return;
   }
 
   playlist.forEach((song, index) => {
     const item = document.createElement("div");
+
     item.className = "song-item";
 
     if (index === currentSong) {
@@ -365,11 +481,14 @@ function renderPlaylist() {
     }
 
     const name = document.createElement("span");
+
     name.className = "song-name";
+
     name.textContent =
       (index === currentSong ? "▶ " : "♪ ") + song.name;
 
     const source = document.createElement("small");
+
     source.textContent =
       song.source === "online" ? "ONLINE" : "LOCAL";
 
@@ -377,6 +496,7 @@ function renderPlaylist() {
 
     item.addEventListener("click", () => {
       currentSong = index;
+
       loadSong(currentSong);
       playSong();
     });
@@ -385,7 +505,10 @@ function renderPlaylist() {
   });
 }
 
-// UPLOAD LIRIK LRC
+// ==================================================
+// UPLOAD LIRIK
+// ==================================================
+
 lyricsBtn.addEventListener("click", () => {
   lyricsUpload.click();
 });
@@ -395,57 +518,79 @@ lyricsUpload.addEventListener("change", async () => {
 
   if (!file) return;
 
-  const text = await file.text();
+  try {
+    const text = await file.text();
 
-  parseLyrics(text);
-  showLyrics();
+    parseLyrics(text);
+    showLyrics();
+  } catch (error) {
+    console.error(error);
+    alert("File lirik tidak dapat dibaca.");
+  }
 
   lyricsUpload.value = "";
 });
 
-// MEMBACA LRC
+// ==================================================
+// PARSE LRC
+// ==================================================
+
 function parseLyrics(text) {
   lyrics = [];
 
   const lines = text.split(/\r?\n/);
 
   lines.forEach(line => {
-    const match = line.match(
-      /\[(\d{2}):(\d{2})(?:\.(\d{1,3}))?\](.*)/
-    );
+    const matches = [
+      ...line.matchAll(
+        /\[(\d{2}):(\d{2})(?:[.:](\d{1,3}))?\]/g
+      )
+    ];
 
-    if (!match) return;
+    if (!matches.length) return;
 
-    const min = Number(match[1]);
-    const sec = Number(match[2]);
-    const fraction = match[3] || "0";
+    const lyricText = line
+      .replace(/\[\d{2}:\d{2}(?:[.:]\d{1,3})?\]/g, "")
+      .trim();
 
-    const milliseconds = Number(
-      fraction.padEnd(3, "0")
-    );
+    matches.forEach(match => {
+      const min = Number(match[1]);
+      const sec = Number(match[2]);
+      const fraction = match[3] || "0";
 
-    lyrics.push({
-      time: min * 60 + sec + milliseconds / 1000,
-      text: match[4].trim()
+      const milliseconds = Number(
+        fraction.padEnd(3, "0")
+      );
+
+      lyrics.push({
+        time: min * 60 + sec + milliseconds / 1000,
+        text: lyricText
+      });
     });
   });
 
   lyrics.sort((a, b) => a.time - b.time);
+
   activeLyric = -1;
 }
 
+// ==================================================
 // MENAMPILKAN LIRIK
+// ==================================================
+
 function showLyrics() {
-  lyricsContent.innerHTML = "";
+  lyricsContent.replaceChildren();
 
   if (!lyrics.length) {
     lyricsContent.innerHTML =
       "<p>Upload your own LRC lyrics file.</p>";
+
     return;
   }
 
   lyrics.forEach((line, index) => {
     const p = document.createElement("p");
+
     p.textContent = line.text;
     p.dataset.index = index;
 
@@ -453,7 +598,10 @@ function showLyrics() {
   });
 }
 
+// ==================================================
 // SINKRONISASI LIRIK
+// ==================================================
+
 function updateLyrics() {
   if (!lyrics.length) return;
 
@@ -471,7 +619,8 @@ function updateLyrics() {
 
   activeLyric = currentIndex;
 
-  const lines = lyricsContent.querySelectorAll("p");
+  const lines =
+    lyricsContent.querySelectorAll("p");
 
   lines.forEach((line, index) => {
     line.classList.toggle(
@@ -480,9 +629,8 @@ function updateLyrics() {
     );
   });
 
-  const active = lyricsContent.querySelector(
-    ".active-lyric"
-  );
+  const active =
+    lyricsContent.querySelector(".active-lyric");
 
   if (active) {
     active.scrollIntoView({
@@ -492,6 +640,10 @@ function updateLyrics() {
   }
 }
 
+// ==================================================
+// START
+// ==================================================
+
 renderPlaylist();
 
-console.log("G MUSIC v2.0 Ready!");
+console.log("G MUSIC v2.1 Ready!");
