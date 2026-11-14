@@ -1,4 +1,6 @@
 
+const JAMENDO_CLIENT_ID = "709fa152"; // ID testing saja
+
 const audio = document.getElementById("audio");
 const upload = document.getElementById("musicUpload");
 const uploadBtn = document.getElementById("uploadBtn");
@@ -10,22 +12,28 @@ const nextBtn = document.getElementById("nextBtn");
 const progress = document.getElementById("progress");
 const songTitle = document.getElementById("songTitle");
 const artist = document.getElementById("artist");
-
 const currentTime = document.getElementById("currentTime");
 const duration = document.getElementById("duration");
 
-const playlistElement = document.getElementById("playlist");
+const cover = document.getElementById("cover");
+const licenseInfo = document.getElementById("licenseInfo");
 
+const playlistElement = document.getElementById("playlist");
 const lyricsBtn = document.getElementById("lyricsBtn");
 const lyricsUpload = document.getElementById("lyricsUpload");
 const lyricsContent = document.getElementById("lyricsContent");
+
+const searchInput = document.getElementById("searchInput");
+const searchBtn = document.getElementById("searchBtn");
+const searchStatus = document.getElementById("searchStatus");
+const onlineResults = document.getElementById("onlineResults");
 
 let playlist = [];
 let currentSong = 0;
 let lyrics = [];
 let activeLyric = -1;
 
-// Format waktu
+// FORMAT WAKTU
 function formatTime(seconds) {
   if (!Number.isFinite(seconds)) return "0:00";
 
@@ -35,10 +43,8 @@ function formatTime(seconds) {
   return min + ":" + String(sec).padStart(2, "0");
 }
 
-// Upload musik
-uploadBtn.addEventListener("click", () => {
-  upload.click();
-});
+// UPLOAD MUSIK LOKAL
+uploadBtn.addEventListener("click", () => upload.click());
 
 upload.addEventListener("change", () => {
   const files = Array.from(upload.files);
@@ -47,8 +53,13 @@ upload.addEventListener("change", () => {
     if (!file.type.startsWith("audio/")) return;
 
     playlist.push({
+      id: "local-" + crypto.randomUUID(),
       name: file.name.replace(/\.[^/.]+$/, ""),
-      url: URL.createObjectURL(file)
+      artist: "Local Music",
+      url: URL.createObjectURL(file),
+      cover: null,
+      license: null,
+      source: "local"
     });
   });
 
@@ -61,7 +72,281 @@ upload.addEventListener("change", () => {
   upload.value = "";
 });
 
-// Tampilkan playlist
+// PENCARIAN MUSIK ONLINE
+async function searchOnline() {
+  const query = searchInput.value.trim();
+
+  if (!query) {
+    searchStatus.textContent = "Masukkan nama lagu atau artis.";
+    return;
+  }
+
+  searchStatus.textContent = "Sedang mencari musik...";
+  onlineResults.innerHTML = "";
+
+  const params = new URLSearchParams({
+    client_id: JAMENDO_CLIENT_ID,
+    format: "json",
+    limit: "15",
+    search: query,
+    type: "single albumtrack",
+    audioformat: "mp32",
+    include: "licenses"
+  });
+
+  try {
+    const response = await fetch(
+      "https://api.jamendo.com/v3.0/tracks/?" + params
+    );
+
+    if (!response.ok) {
+      throw new Error("HTTP " + response.status);
+    }
+
+    const data = await response.json();
+
+    if (data.headers?.status !== "success") {
+      throw new Error(
+        data.headers?.error_message || "API error"
+      );
+    }
+
+    const tracks = data.results || [];
+
+    if (!tracks.length) {
+      searchStatus.textContent = "Musik tidak ditemukan.";
+      return;
+    }
+
+    searchStatus.textContent =
+      tracks.length + " musik ditemukan.";
+
+    tracks.forEach(track => {
+      renderOnlineTrack(track);
+    });
+
+  } catch (error) {
+    console.error(error);
+
+    searchStatus.textContent =
+      "Pencarian gagal. Periksa internet, Client ID, atau coba jalankan melalui localhost/HTTPS.";
+  }
+}
+
+searchBtn.addEventListener("click", searchOnline);
+
+searchInput.addEventListener("keydown", event => {
+  if (event.key === "Enter") searchOnline();
+});
+
+// TAMPILKAN HASIL ONLINE
+function renderOnlineTrack(track) {
+  const card = document.createElement("div");
+  card.className = "online-card";
+
+  const image = document.createElement("img");
+  image.src = track.image || "";
+  image.alt = "Album cover";
+  image.onerror = () => {
+    image.style.visibility = "hidden";
+  };
+
+  const info = document.createElement("div");
+  info.className = "online-info";
+
+  const title = document.createElement("h3");
+  title.textContent = track.name;
+
+  const artistName = document.createElement("p");
+  artistName.textContent = track.artist_name || "Unknown Artist";
+
+  const button = document.createElement("button");
+  button.textContent = "▶";
+  button.title = "Play music";
+
+  button.addEventListener("click", () => {
+    if (!track.audio) {
+      alert("Stream lagu tidak tersedia.");
+      return;
+    }
+
+    const song = {
+      id: "jamendo-" + track.id,
+      name: track.name,
+      artist: track.artist_name || "Unknown Artist",
+      url: track.audio,
+      cover: track.image || null,
+      license: track.license_ccurl || null,
+      source: "online"
+    };
+
+    const existing = playlist.findIndex(
+      item => item.id === song.id
+    );
+
+    if (existing >= 0) {
+      currentSong = existing;
+    } else {
+      playlist.push(song);
+      currentSong = playlist.length - 1;
+    }
+
+    renderPlaylist();
+    loadSong(currentSong);
+    playSong();
+  });
+
+  info.append(title, artistName);
+  card.append(image, info, button);
+
+  onlineResults.appendChild(card);
+}
+
+// MEMUAT LAGU
+function loadSong(index) {
+  const song = playlist[index];
+
+  if (!song) return;
+
+  audio.pause();
+  audio.src = song.url;
+
+  songTitle.textContent = song.name;
+  artist.textContent = song.artist;
+
+  if (song.cover) {
+    cover.innerHTML = "";
+
+    const image = document.createElement("img");
+    image.src = song.cover;
+    image.alt = "Album cover";
+
+    cover.appendChild(image);
+  } else {
+    cover.innerHTML = "<span>G MUSIC</span>";
+  }
+
+  licenseInfo.replaceChildren();
+
+  if (song.license) {
+    const link = document.createElement("a");
+    link.href = song.license;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "View music license";
+
+    licenseInfo.append("License: ", link);
+  } else {
+    licenseInfo.textContent =
+      song.source === "local"
+        ? "Local music"
+        : "License information unavailable";
+  }
+
+  progress.value = 0;
+  currentTime.textContent = "0:00";
+  duration.textContent = "0:00";
+
+  lyrics = [];
+  activeLyric = -1;
+  showLyrics();
+
+  renderPlaylist();
+  audio.load();
+}
+
+// PLAY
+async function playSong() {
+  if (!audio.src) {
+    alert("Pilih musik terlebih dahulu.");
+    return;
+  }
+
+  try {
+    await audio.play();
+  } catch (error) {
+    console.error(error);
+    alert("Musik tidak dapat diputar.");
+  }
+}
+
+playBtn.addEventListener("click", () => {
+  if (!audio.src) {
+    alert("Pilih musik terlebih dahulu.");
+    return;
+  }
+
+  if (audio.paused) {
+    playSong();
+  } else {
+    audio.pause();
+  }
+});
+
+audio.addEventListener("play", () => {
+  playBtn.textContent = "❚❚";
+});
+
+audio.addEventListener("pause", () => {
+  playBtn.textContent = "▶";
+});
+
+// NEXT
+nextBtn.addEventListener("click", () => {
+  if (!playlist.length) return;
+
+  currentSong = (currentSong + 1) % playlist.length;
+  loadSong(currentSong);
+  playSong();
+});
+
+// PREVIOUS
+prevBtn.addEventListener("click", () => {
+  if (!playlist.length) return;
+
+  currentSong =
+    (currentSong - 1 + playlist.length) % playlist.length;
+
+  loadSong(currentSong);
+  playSong();
+});
+
+// PROGRESS
+audio.addEventListener("timeupdate", () => {
+  if (!audio.duration) return;
+
+  progress.value =
+    (audio.currentTime / audio.duration) * 100;
+
+  currentTime.textContent =
+    formatTime(audio.currentTime);
+
+  updateLyrics();
+});
+
+audio.addEventListener("loadedmetadata", () => {
+  duration.textContent = formatTime(audio.duration);
+});
+
+progress.addEventListener("input", () => {
+  if (!audio.duration) return;
+
+  audio.currentTime =
+    (progress.value / 100) * audio.duration;
+
+  updateLyrics();
+});
+
+// AUTO NEXT
+audio.addEventListener("ended", () => {
+  if (!playlist.length) return;
+
+  currentSong = (currentSong + 1) % playlist.length;
+  loadSong(currentSong);
+  playSong();
+});
+
+// PLAYLIST
 function renderPlaylist() {
   playlistElement.innerHTML = "";
 
@@ -81,12 +366,14 @@ function renderPlaylist() {
 
     const name = document.createElement("span");
     name.className = "song-name";
-    name.textContent = "🎵 " + song.name;
+    name.textContent =
+      (index === currentSong ? "▶ " : "♪ ") + song.name;
 
-    const number = document.createElement("span");
-    number.textContent = index === currentSong ? "▶" : "♪";
+    const source = document.createElement("small");
+    source.textContent =
+      song.source === "online" ? "ONLINE" : "LOCAL";
 
-    item.append(name, number);
+    item.append(name, source);
 
     item.addEventListener("click", () => {
       currentSong = index;
@@ -98,124 +385,7 @@ function renderPlaylist() {
   });
 }
 
-// Memuat lagu
-function loadSong(index) {
-  if (!playlist[index]) return;
-
-  audio.pause();
-  audio.src = playlist[index].url;
-
-  songTitle.textContent = playlist[index].name;
-  artist.textContent = "Local Music";
-
-  progress.value = 0;
-  currentTime.textContent = "0:00";
-  duration.textContent = "0:00";
-
-  lyrics = [];
-  activeLyric = -1;
-  showLyrics();
-
-  renderPlaylist();
-  audio.load();
-}
-
-// Play
-async function playSong() {
-  if (!audio.src) {
-    alert("Silakan upload musik terlebih dahulu!");
-    return;
-  }
-
-  try {
-    await audio.play();
-    playBtn.textContent = "❚❚";
-  } catch (error) {
-    console.error(error);
-    alert("Musik tidak dapat diputar.");
-  }
-}
-
-// Play dan Pause
-playBtn.addEventListener("click", () => {
-  if (!audio.src) {
-    alert("Silakan upload musik terlebih dahulu!");
-    return;
-  }
-
-  if (audio.paused) {
-    playSong();
-  } else {
-    audio.pause();
-  }
-});
-
-audio.addEventListener("pause", () => {
-  playBtn.textContent = "▶";
-});
-
-audio.addEventListener("play", () => {
-  playBtn.textContent = "❚❚";
-});
-
-// Lagu berikutnya
-nextBtn.addEventListener("click", () => {
-  if (!playlist.length) return;
-
-  currentSong = (currentSong + 1) % playlist.length;
-  loadSong(currentSong);
-  playSong();
-});
-
-// Lagu sebelumnya
-prevBtn.addEventListener("click", () => {
-  if (!playlist.length) return;
-
-  currentSong =
-    (currentSong - 1 + playlist.length) % playlist.length;
-
-  loadSong(currentSong);
-  playSong();
-});
-
-// Update progress
-audio.addEventListener("timeupdate", () => {
-  if (!audio.duration) return;
-
-  progress.value =
-    (audio.currentTime / audio.duration) * 100;
-
-  currentTime.textContent =
-    formatTime(audio.currentTime);
-
-  updateLyrics();
-});
-
-// Metadata
-audio.addEventListener("loadedmetadata", () => {
-  duration.textContent = formatTime(audio.duration);
-});
-
-// Geser progress
-progress.addEventListener("input", () => {
-  if (!audio.duration) return;
-
-  audio.currentTime =
-    (progress.value / 100) * audio.duration;
-
-  updateLyrics();
-});
-
-// Lagu selesai
-audio.addEventListener("ended", () => {
-  if (!playlist.length) return;
-
-  currentSong = (currentSong + 1) % playlist.length;
-  loadSong(currentSong);
-  playSong();
-});
-
-// Upload lirik
+// UPLOAD LIRIK LRC
 lyricsBtn.addEventListener("click", () => {
   lyricsUpload.click();
 });
@@ -233,7 +403,7 @@ lyricsUpload.addEventListener("change", async () => {
   lyricsUpload.value = "";
 });
 
-// Membaca format LRC
+// MEMBACA LRC
 function parseLyrics(text) {
   lyrics = [];
 
@@ -254,11 +424,8 @@ function parseLyrics(text) {
       fraction.padEnd(3, "0")
     );
 
-    const time =
-      min * 60 + sec + milliseconds / 1000;
-
     lyrics.push({
-      time: time,
+      time: min * 60 + sec + milliseconds / 1000,
       text: match[4].trim()
     });
   });
@@ -267,13 +434,13 @@ function parseLyrics(text) {
   activeLyric = -1;
 }
 
-// Menampilkan lirik
+// MENAMPILKAN LIRIK
 function showLyrics() {
   lyricsContent.innerHTML = "";
 
   if (!lyrics.length) {
     lyricsContent.innerHTML =
-      "<p>Upload an LRC lyrics file.</p>";
+      "<p>Upload your own LRC lyrics file.</p>";
     return;
   }
 
@@ -282,15 +449,11 @@ function showLyrics() {
     p.textContent = line.text;
     p.dataset.index = index;
 
-    if (index === activeLyric) {
-      p.classList.add("active-lyric");
-    }
-
     lyricsContent.appendChild(p);
   });
 }
 
-// Sinkronisasi lirik
+// SINKRONISASI LIRIK
 function updateLyrics() {
   if (!lyrics.length) return;
 
@@ -329,4 +492,6 @@ function updateLyrics() {
   }
 }
 
-console.log("G MUSIC v1.0 Ready!");
+renderPlaylist();
+
+console.log("G MUSIC v2.0 Ready!");
