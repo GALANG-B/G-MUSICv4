@@ -1,0 +1,189 @@
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #080812;
+  color: white;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+}
+
+.navbar {
+  height: 75px;
+  padding: 0 8%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #252044;
+  background: #0d0b19;
+}
+
+.logo {
+  font-size: 25px;
+  font-weight: bold;
+  color: #b34dff;
+}
+
+.logo span {
+  color: #00eaff;
+}
+
+nav {
+  display: flex;
+  gap: 30px;
+}
+
+nav a {
+  color: #aaa;
+  text-decoration: none;
+}
+
+nav a:hover {
+  color: #00eaff;
+}
+
+.profile {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid #00eaff;
+  background: transparent;
+  color: #00eaff;
+}
+
+.container {
+  width: 85%;
+  max-width: 1200px;
+  margin: 60px auto;
+}
+
+.tagline {
+  color: #00eaff;
+  letter-spacing: 4px;
+  font-size: 12px;
+}
+
+.welcome h1 {
+  font-size: clamp(38px, 6vw, 65px);
+  margin: 15px 0;
+}
+
+.welcome h1 span {
+  color: #b34dff;
+  text-shadow: 0 0 20px #a020f0;
+}
+
+.welcome p:last-child {
+  color: #999;
+}
+
+.music-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 25px;
+  margin-top: 50px;
+}
+
+.player-panel,
+.lyrics-panel {
+  padding: 30px;
+  background: #121122;
+  border: 1px solid #342653;
+  border-radius: 20px;
+  box-shadow: 0 0 20px #8b2be222;
+}
+
+.cover {
+  width: 100%;
+  aspect-ratio: 1.5;
+  background: linear-gradient(135deg, #6014a8, #071d42, #00a6c7);
+  border-radius: 15px;
+  display: grid;
+  place-items: center;
+  font-size: 35px;
+  font-weight: bold;
+  box-shadow: 0 0 25px #a020f044;
+  margin-bottom: 25px;
+}
+
+.artist {
+  color: #888;
+  margin-top: 8px;
+}
+
+.progress {
+  height: 5px;
+  background: #333;
+  margin: 30px 0;
+  border-radius: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 35%;
+  background: #00eaff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px #00eaff;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 30px;
+}
+
+.controls button {
+  background: transparent;
+  color: white;
+  border: none;
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.controls .play {
+  background: #a020f0;
+  width: 55px;
+  height: 55px;
+  border-radius: 50%;
+  box-shadow: 0 0 20px #a020f0;
+}
+
+.lyrics-panel h2 span {
+  color: #00eaff;
+  font-size: 12px;
+  margin-left: 10px;
+}
+
+.lyrics {
+  text-align: center;
+  margin-top: 60px;
+  line-height: 3;
+  color: #aaa;
+}
+
+@media (max-width: 700px) {
+  .navbar {
+    padding: 0 5%;
+  }
+
+  nav {
+    gap: 12px;
+  }
+
+  nav a {
+    font-size: 12px;
+  }
+
+  .container {
+    width: 90%;
+    margin: 35px auto;
+  }
+
+  .music-layout {
+    grid-template-columns: 1fr;
+  }
+}
