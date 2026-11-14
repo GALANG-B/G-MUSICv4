@@ -1,5 +1,5 @@
 
-const JAMENDO_CLIENT_ID = "709fa152"; // ID testing Jamendo
+const JAMENDO_CLIENT_ID = "e52256ab"; // ID testing Jamendo
 
 // ELEMENT HTML
 const audio = document.getElementById("audio");
