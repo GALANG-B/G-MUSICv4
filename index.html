@@ -12,13 +12,12 @@
 
 <header class="navbar">
   <div class="logo">G<span>MUSIC</span></div>
-
   <nav>
     <a href="#home">Home</a>
     <a href="#player">Player</a>
+    <a href="#online">Explore</a>
     <a href="#lyrics">Lyrics</a>
   </nav>
-
   <div class="profile">G</div>
 </header>
 
@@ -27,7 +26,25 @@
   <section class="welcome">
     <p class="tagline">YOUR MUSIC. YOUR UNIVERSE.</p>
     <h1>Feel The <span>Music.</span></h1>
-    <p>Listen to your favorite songs and feel every lyric.</p>
+    <p>Discover music. Enjoy every moment.</p>
+  </section>
+
+  <section class="search-section" id="online">
+    <h2>Discover Music <span>✦</span></h2>
+    <p>Search independent music from Jamendo.</p>
+
+    <div class="search-box">
+      <input id="searchInput"
+        type="search"
+        placeholder="Search song or artist...">
+      <button id="searchBtn">SEARCH</button>
+    </div>
+
+    <p id="searchStatus" class="status">
+      Search for your favorite music.
+    </p>
+
+    <div id="onlineResults" class="results"></div>
   </section>
 
   <section class="music-layout" id="player">
@@ -42,7 +59,7 @@
       <p class="artist" id="artist">Unknown Artist</p>
 
       <button class="upload-btn" id="uploadBtn">
-        + Upload Music
+        + Upload Local Music
       </button>
 
       <input type="file" id="musicUpload"
@@ -65,28 +82,27 @@
       </div>
 
       <p class="volume-label">G MUSIC PLAYER</p>
+      <p id="licenseInfo" class="license"></p>
     </div>
 
     <div class="lyrics-panel" id="lyrics">
+
       <div class="lyrics-header">
         <h2>Lyrics</h2>
         <span class="live">● LIVE</span>
       </div>
 
-      <input type="file" id="lyricsUpload"
-        accept=".lrc,.txt" hidden>
-
       <button class="upload-btn" id="lyricsBtn">
         + Upload Lyrics (.LRC)
       </button>
 
+      <input type="file" id="lyricsUpload"
+        accept=".lrc,.txt" hidden>
+
       <div class="lyrics" id="lyricsContent">
-        <p class="active-lyric">
-          Your music universe.
-        </p>
-        <p>Every beat, every word.</p>
-        <p>Enjoy your music.</p>
+        <p>Upload your own LRC lyrics file.</p>
       </div>
+
     </div>
 
   </section>
@@ -102,6 +118,7 @@
 
 <footer>
   <p>© 2026 G MUSIC. All Rights Reserved.</p>
+  <p>Online music provided by Jamendo.</p>
 </footer>
 
 <script src="script.js"></script>
